@@ -4,9 +4,9 @@ Tiny browser-based Linux with a planned paravirtual WebGPU compute device.
 
 ## Current status
 
-The repository currently contains the static browser shell, the OPFS/IndexedDB overlay, the host WebGPU vector-add probe, the device ABI, and the first guest C ABI. The v86 browser build and Buildroot kernel/rootfs are not bundled yet, so **the guest does not boot in this checkout**. The UI says so rather than simulating a boot.
+STEP 1 is implemented: the repository vendors v86's browser runtime and BIOS files plus the v86 project's `linux4.iso`. The page boots that real x86 Linux image and routes its serial bytes and keyboard input through v86. The first proof is typing `uname -a` and `ls /` into the guest terminal.
 
-The compute probe is real: on a WebGPU-capable browser it compiles and dispatches a WGSL vector-add shader, reads the result back, and verifies it. Browsers without WebGPU get a clearly labeled CPU-only state.
+Persistence and GPU work are intentionally not wired into this boot step yet. There is no simulated shell or scripted command output.
 
 ## Run locally
 
@@ -16,7 +16,7 @@ Serve the repository as static files from its root, for example:
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080/`. GitHub Pages can serve the same files because asset paths are relative and there is no server API. WebGPU and OPFS require a secure context in deployed environments; GitHub Pages provides HTTPS.
+Open `http://localhost:8080/`, click **Boot Linux**, click the terminal, and type `uname -a` followed by Enter. Then type `ls /`. GitHub Pages can serve the same files because asset paths are relative and there is no server API.
 
 ## Build the guest image
 
@@ -29,7 +29,7 @@ make
 
 Copy the resulting kernel and compressed initramfs to `public/images/` as `kernel` and `rootfs.cpio.gz`. A future build script will make this copy and verify the size budget. The target is a stripped x86_64 kernel plus BusyBox/musl image under 10 MB compressed.
 
-The v86 browser build must be placed under `public/v86/` with its normal browser assets. It is deliberately not downloaded at runtime: deployments remain static and reproducible.
+The vendored v86 files are under `public/v86/`; `public/images/linux4.iso` is the temporary prebuilt guest image. STEP 4 will replace this image with the project's own Buildroot output.
 
 ## Architecture
 
@@ -53,9 +53,8 @@ The device register map and 128-byte job descriptor are specified in [PLAN.md](.
 
 ## Known limitations
 
-- v86 integration, the actual guest image, and serial boot are still milestone 1 work.
-- The current overlay is a browser storage layer, not yet wired into v86's block-device callbacks.
+- Persistence is not yet wired into v86's block-device callbacks.
 - The host device module defines the ABI and descriptor shape but is not yet registered inside v86.
 - The guest C library currently demonstrates the polling/MMIO contract; its physical mapping and `gpurun` CLI still need a small kernel-side access path.
 - Completion currently uses polling. Interrupt delivery, shader IDs, buffer quotas, matrix multiply, and CPU/GPU timing comparison are future milestones.
-- GitHub Pages cannot set COOP/COEP headers. The initial design avoids requiring SharedArrayBuffer; the optional `coi-serviceworker` optimization is not included yet.
+- GitHub Pages cannot set COOP/COEP headers directly. `coi-serviceworker.js` provides the optional client-side header path for future SharedArrayBuffer acceleration; basic operation does not require it.

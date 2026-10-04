@@ -4,53 +4,39 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101820">
-  <title>wgulinux | browser Linux lab</title>
+  <title>wgulinux | Linux in the browser</title>
   <link rel="stylesheet" href="./src/ui.css">
+  <script src="./coi-serviceworker.js"></script>
+  <script src="./public/v86/build/libv86.js"></script>
 </head>
 <body>
   <main class="app-shell">
     <header class="masthead">
       <div>
-        <p class="kicker">browser systems lab / 01</p>
+        <p class="kicker">real x86 Linux / v86</p>
         <h1>wgulinux</h1>
-        <p class="lede">A tiny Linux machine in the browser, with a compute device hiding behind the same glass.</p>
+        <p class="lede">A real Linux kernel and BusyBox shell running entirely in this browser tab.</p>
       </div>
-      <div class="status-chip" id="gpu-status">checking WebGPU</div>
+      <div class="status-chip" id="boot-state">stopped</div>
     </header>
 
-    <section class="workspace" aria-label="wgulinux control room">
+    <section class="workspace boot-workspace" aria-label="Linux virtual machine">
       <section class="console-panel panel">
         <div class="panel-heading">
           <div><p class="eyebrow">serial console</p><h2>guest ttyS0</h2></div>
-          <span class="signal" id="boot-state">artifact check</span>
+          <span class="signal">v86 x86</span>
         </div>
-        <pre class="console" id="console-output" aria-live="polite">wgulinux firmware monitor\nwaiting for kernel and rootfs artifacts...\n</pre>
+        <div class="terminal" id="terminal" tabindex="0" role="textbox" aria-label="Linux guest terminal"></div>
         <div class="console-actions">
           <button class="button button-primary" id="boot-button" type="button">Start guest</button>
-          <button class="button" id="clear-console" type="button">Clear console</button>
+          <button class="button" id="save-button" type="button">Save</button>
+          <button class="button button-danger" id="reset-button" type="button">Reset disk</button>
+          <span class="muted" id="snapshot-size">snapshot: 0 B</span>
         </div>
       </section>
-
-      <aside class="side-stack">
-        <section class="panel storage-panel">
-          <div class="panel-heading"><div><p class="eyebrow">persistent layer</p><h2>browser disk</h2></div><span class="signal signal-good" id="storage-state">probing</span></div>
-          <p class="metric" id="storage-backend">checking storage backend</p>
-          <p class="muted">A copy-on-write scratch layer keeps browser writes separate from the read-only guest image.</p>
-          <div class="storage-row"><input id="file-name" value="/etc/motd" aria-label="Guest file name"><input id="file-value" value="hello from OPFS" aria-label="Guest file content"><button class="icon-button" id="write-file" type="button" title="Write file" aria-label="Write file">+</button></div>
-          <div class="storage-row"><button class="button" id="read-file" type="button">Read file</button><button class="button button-danger" id="reset-disk" type="button">Reset disk</button></div>
-          <pre class="file-preview" id="file-preview">no overlay file selected</pre>
-        </section>
-
-        <section class="panel compute-panel">
-          <div class="panel-heading"><div><p class="eyebrow">paravirtual device</p><h2>compute probe</h2></div><span class="signal" id="device-state">idle</span></div>
-          <p class="muted">A host-side vector add exercises the same descriptor shape planned for the guest device.</p>
-          <button class="button button-primary wide" id="run-compute" type="button">Run vector add</button>
-          <pre class="result" id="compute-result">no job submitted</pre>
-        </section>
-      </aside>
     </section>
 
-    <footer><span>static client / no server</span><a href="./PLAN.md">read the ABI plan</a></footer>
+    <footer><span>static client / Linux guest</span><span>image: linux4.iso</span></footer>
   </main>
   <script type="module" src="./src/main.js"></script>
 </body>
