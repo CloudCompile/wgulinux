@@ -1,7 +1,10 @@
+import { WgulinuxGPUDevice } from "./gpu/device.js";
+
 const terminal = document.querySelector("#terminal");
 const bootButton = document.querySelector("#boot-button");
 const saveButton = document.querySelector("#save-button");
 const resetButton = document.querySelector("#reset-button");
+const gpuButton = document.querySelector("#gpu-button");
 const snapshotSizeLabel = document.querySelector("#snapshot-size");
 const bootState = document.querySelector("#boot-state");
 
@@ -12,6 +15,7 @@ let emulator;
 let stateTimer = null;
 let storage;
 let diskBuffer = null;
+let gpuDevice = null;
 
 function formatBytes(bytes) {
   if (bytes === 0) return "0 B";
@@ -193,6 +197,83 @@ function scheduleAutosave() {
   }, 15000);
 }
 
+function attachGpuDevice(emulatorInstance) {
+  if (!emulatorInstance || !emulatorInstance.v86 || !emulatorInstance.v86.cpu) {
+    return null;
+  }
+
+  if (!gpuDevice) {
+    gpuDevice = new WgulinuxGPUDevice();
+  }
+
+  gpuDevice.attach(emulatorInstance);
+  terminal.textContent += "\n[wgpu: device mapped at 0xf0000000]\n";
+  return gpuDevice;
+}
+
+async function runGpuDemo() {
+  if (!emulator) {
+    terminal.textContent += "\n[wgpu: boot the guest first]\n";
+    return;
+  }
+
+  if (!gpuDevice) {
+    attachGpuDevice(emulator);
+  }
+
+  const guestMemory = emulator.v86.cpu.mem8;
+  const baseAddr = 0x1000000;
+  const floatSize = 4;
+  const count = 256;
+  const aAddr = baseAddr;
+  const bAddr = aAddr + count * floatSize;
+  const outAddr = bAddr + count * floatSize;
+  const descAddr = outAddr + count * floatSize;
+
+  const valuesA = Float32Array.from({ length: count }, (_, index) => index + 1);
+  const valuesB = Float32Array.from({ length: count }, (_, index) => 2 * index + 3);
+  const expected = new Float32Array(count);
+  for (let i = 0; i < count; i++) expected[i] = valuesA[i] + valuesB[i];
+
+  emulator.v86.cpu.write_blob(new Uint8Array(valuesA.buffer), aAddr);
+  emulator.v86.cpu.write_blob(new Uint8Array(valuesB.buffer), bAddr);
+  const resultBuffer = new Float32Array(count);
+  emulator.v86.cpu.write_blob(new Uint8Array(resultBuffer.buffer), outAddr);
+
+  const descriptor = new ArrayBuffer(128);
+  const view = new DataView(descriptor);
+  view.setUint32(0x00, 0x444a4757, true);
+  view.setUint16(0x04, 1, true);
+  view.setUint32(0x08, 1, true);
+  view.setUint32(0x0c, 0, true);
+  view.setBigUint64(0x18, BigInt(aAddr), true);
+  view.setBigUint64(0x20, BigInt(valuesA.byteLength), true);
+  view.setBigUint64(0x28, BigInt(bAddr), true);
+  view.setBigUint64(0x30, BigInt(valuesB.byteLength), true);
+  view.setBigUint64(0x38, BigInt(outAddr), true);
+  view.setBigUint64(0x40, BigInt(resultBuffer.byteLength), true);
+  view.setUint32(0x48, count, true);
+  view.setUint32(0x4c, 1, true);
+  view.setUint32(0x50, 1, true);
+
+  emulator.v86.cpu.write_blob(new Uint8Array(descriptor), descAddr);
+  const result = await gpuDevice.submitDescriptor(descAddr);
+
+  if (!result.supported) {
+    terminal.textContent += `\n[wgpu: ${result.message}]\n`;
+    return;
+  }
+
+  const resultBytes = new Uint8Array(guestMemory.buffer, guestMemory.byteOffset + outAddr, count * floatSize);
+  const output = new Float32Array(resultBytes.buffer, resultBytes.byteOffset, count);
+  const matches = output.every((value, index) => Math.abs(value - expected[index]) < 0.000001);
+
+  terminal.textContent += `\n[wgpu: job complete (${matches ? "verified" : "mismatch"}) in ${result.elapsedMs} ms]\n`;
+  if (!matches) {
+    terminal.textContent += `[wgpu: expected ${expected.slice(0, 8).join(", ")}, got ${output.slice(0, 8).join(", ")}]\n`;
+  }
+}
+
 async function bootLinux({ forceCold = false } = {}) {
   if (emulator) {
     emulator.destroy();
@@ -225,6 +306,7 @@ async function bootLinux({ forceCold = false } = {}) {
     });
     window.__emulator = emulator;
     emulator.add_listener("serial0-output-byte", writeSerialByte);
+    attachGpuDevice(emulator);
     scheduleAutosave();
     bootState.textContent = persisted && persisted.length ? "restored" : "running";
     if (persisted && persisted.length) terminal.textContent += "\n[restored disk image]\n";
@@ -275,6 +357,7 @@ document.addEventListener("visibilitychange", async () => {
 terminal.addEventListener("keydown", sendKey);
 bootButton.addEventListener("click", () => bootLinux({ forceCold: true }));
 saveButton.addEventListener("click", saveButtonHandler);
+gpuButton.addEventListener("click", () => runGpuDemo());
 resetButton.addEventListener("click", async () => {
   await resetDiskImage();
   terminal.textContent = "";
